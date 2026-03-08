@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>📦ESTOQUE SYSTEM - INVENTORY</title>
+<style>
+body{font-family:Arial;margin:0;background:#f1f5f9}
+header{background:#0f172a;color:white;padding:15px;text-align:center}
+nav{display:flex;background:#1e293b}
+
+/* ALERTA DE ESTOQUE BAIXO */
+.estoque-baixo{
+background:#fee2e2;
+border-left:6px solid #ef4444;
+color:#991b1b;
+font-weight:600;
+padding-left:8px;
+}
+
+
+nav button{flex:1;padding:12px;border:none;background:#1e293b;color:white;cursor:pointer}
+nav button:hover{background:#334155}
+section{display:none;padding:20px}
+section.active{display:block}
+input,select,button{padding:8px;margin:5px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{border:1px solid #ccc;padding:8px;text-align:center}
+
+#buscaProduto{
+width:300px;
+padding:8px;
+margin-bottom:10px;
+border:1px solid #ccc;
+border-radius:6px;
+}
+
+/* CAIXA DO NOME DO PRODUTO */
+#produtoEntrada,
+#produtoMov,
+#produtoContagem{
+width: 300px;
+font-size:12px;
+padding:10px;
+}
+
+.acoes button{
+font-size:20px;
+padding:6px 10px;
+margin:2px;
+cursor:pointer;
+border:none;
+background:#e2e8f0;
+border-radius:6px;
+}
+
+.acoes button:hover{
+background:#cbd5f5;
+}
+
+</style>
+<script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+
+<header><h2>📦ESTOQUE SYSTEM - INVENTORY</h2></header>
+
+<nav>
+<button onclick="abrir('geral')">Estoque Geral</button>
+<button onclick="abrir('cadastro')">Cadastro</button>
+<button onclick="abrir('mov')">Movimentação</button>
+<button onclick="abrir('cont')">Contagem</button>
+<button onclick="abrir('entrada')">📦 Recebimentos</button>
+<button onclick="enviarWhatsApp()">📱 Enviar pedido no WhatsApp</button>
+</nav>
+
+<section id="entrada">
+<h3>📦 Entrada de Nota Fiscal</h3>
+<input id="eanEntrada" placeholder="EAN / Código de barras" onkeyup="buscarProdutoEntrada()">
+<input id="produtoEntrada" placeholder="Produto" readonly>
+<button onclick="iniciarScanner('eanEntrada')">📷 Escanear</button>
+<div id="msgEntrada" style="margin-top:5px;height:20px"></div>
+<input type="number" id="qtdEntrada" placeholder="Quantidade">
+<input id="fornecedor" placeholder="Fornecedor">
+<input id="nota" placeholder="Número da Nota Fiscal">
+<br>
+<button onclick="registrarEntrada()">Registrar Entrada</button>
+</section>
+
+<section id="geral" class="active">
+<h3>Estoque Geral</h3>
+
+<input type="text" id="buscaProduto" placeholder="Buscar por EAN ou Produto" onkeyup="buscarProduto()">
+
+<table>
+<thead>
+<tr>
+<th>EAN13</th>
+<th>Produto</th>
+<th>Estoque</th>
+<th>Cozinha</th>
+<th>Café</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody id="tabela"></tbody>
+</table>
+<h3>🔔 Produtos para Comprar</h3>
+
+<table>
+<thead>
+<tr>
+<th>Produto</th>
+<th>Total Atual</th>
+<th>Estoque Mínimo</th>
+<th>Comprar</th>
+</tr>
+</thead>
+<tbody id="listaCompra"></tbody>
+</table>
+
+<button onclick="gerarPedido()">📦 Gerar Pedido de Compra</button>
+</section>
+
+<section id="cadastro">
+<h3>Cadastro de Produto</h3>
+<input id="ean" placeholder="EAN13">
+<button onclick="iniciarScanner('ean')">📷 Escanear</button>
+<div id="msgCadastro" style="margin-top:5px;height:20px"></div>
+<input id="produto" placeholder="Produto">
+<input type="number" id="qtd" placeholder="Quantidade Inicial">
+<input type="number" id="min" placeholder="Estoque mínimo">
+<br>
+<label><input type="checkbox" id="est">Estoque</label>
+<label><input type="checkbox" id="coz">Cozinha</label>
+<label><input type="checkbox" id="caf">Café</label>
+<br>
+<button onclick="cadastrar()">Cadastrar</button>
+</section>
+
+<section id="mov">
+<h3>Movimentação</h3>
+<input id="movEan" placeholder="EAN13 do Produto" onkeyup="buscarProdutoMov()">
+<input id="produtoMov" placeholder="Produto" readonly>
+<button onclick="iniciarScanner('movEan')">📷 Escanear</button>
+<div id="msgMov" style="margin-top:5px;height:20px"></div>
+<select id="origem">
+<option>ESTOQUE</option>
+<option>COZINHA</option>
+<option>CAFE</option>
+</select>
+<select id="destino">
+<option>ESTOQUE</option>
+<option>COZINHA</option>
+<option>CAFE</option>
+</select>
+<input type="number" id="movQtd" placeholder="Quantidade">
+<button onclick="movimentar()">Mover</button>
+</section>
+
+<section id="cont">
+<h3>Contagem Noturna</h3>
+EAN: <input id="contEan" placeholder="EAN13 do Produto" onkeyup="buscarProdutoContagem()">
+PRODUTO: <input id="produtoContagem" readonly placeholder="Produto">
+
+<button onclick="iniciarScanner('contEan')">📷 Escanear</button>
+
+SETOR:
+<select id="contSetor" onchange="verificarPainelCafe()">
+<option>ESTOQUE</option>
+<option>COZINHA</option>
+<option>CAFE</option>
+</select>
+
+<div id="painelCafe" style="display:none;margin-top:20px">
+
+<h4>☕ Painel Touch - Contagem Café</h4>
+
+<div id="botoesCafe" style="
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+gap:10px;
+margin-top:10px;
+"></div>
+
+</div>
+QUANTIDADE: <input type="number" id="contQtd" placeholder="Quantidade Contada">
+<br>
+<button onclick="adicionarContagem()">Adicionar à Lista</button>
+<button onclick="enviarContagens()">Enviar Todos</button>
+<div id="msgCont" style="margin-top:8px;height:20px"></div>
+
+<h4>Contagens Pendentes:</h4>
+<table id="tabelaContagens">
+<thead>
+<tr><th>EAN</th><th>Setor</th><th>Qtd</th><th>Ações</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+</section>
+
+<div id="scanner" style="
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:black;
+z-index:999;
+">
+
+<div id="camera" style="width:100%;max-width:500px;margin:auto"></div>
+
+<button onclick="pararScanner()" 
+style="width:100%;height:10%;font-size:20px">
+❌ Fechar
+</button>
+
+</div>
+
+<script>
+const url="https://script.google.com/macros/s/AKfycbyB9fNpIBafn8uKo8VUGdFtO1TaI6HhRATSwWbT1ujg8lWnbP8_Jx-bpO6KJYVcvCTg5g/exec";
+let produtos=[];
+let contagensPendentes = [];
+
+// =======================
+// Função de navegação
+// =======================
+function abrir(id){
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// =======================
+// Função para mostrar mensagens
+// =======================
+function mostrarMsg(idDiv, mensagem, sucesso=true, duracao=2000){
+  const div = document.getElementById(idDiv);
+  div.textContent = mensagem;
+  div.style.color = sucesso ? "green" : "red";
+  setTimeout(()=> div.textContent="", duracao);
+}
+
+// =======================
+// Cadastro de produto
+// =======================
+function cadastrar() {
+  let ean = document.getElementById("ean").value.trim();
+  let produto = document.getElementById("produto").value.trim();
+  let qtd = parseInt(document.getElementById("qtd").value) || 0;
+  let minimo = parseInt(document.getElementById("min").value) || 0;
+
+  if (!ean || ean.length !== 13 || isNaN(ean)) {
+    mostrarMsg("msgCadastro","EAN13 inválido! Deve conter 13 números", false);
+    return;
+  }
+
+  if (!produto) {
+    mostrarMsg("msgCadastro","Digite o nome do produto!", false);
+    return;
+  }
+
+  let estoque = document.getElementById("est").checked ? qtd : 0;
+  let cozinha = document.getElementById("coz").checked ? qtd : 0;
+  let cafe = document.getElementById("caf").checked ? qtd : 0;
+
+  fetch(url, {
+    method: "POST",
+    body: JSON.stringify({
+  tipo: "cadastro",
+  ean: ean,
+  produto: produto,
+  estoque: estoque,
+  cozinha: cozinha,
+  cafe: cafe,
+  minimo: minimo
+  })
+  })
+  .then(res => res.text())
+  .then(resposta => {
+    if (resposta === "EAN_DUPLICADO") { mostrarMsg("msgCadastro","Este EAN já está cadastrado!", false); return; }
+    if (resposta === "EAN_INVALIDO") { mostrarMsg("msgCadastro","EAN inválido!", false); return; }
+
+    mostrarMsg("msgCadastro","Produto cadastrado com sucesso!");
+    document.getElementById("ean").value = "";
+    document.getElementById("produto").value = "";
+    document.getElementById("qtd").value = "";
+    document.getElementById("est").checked = false;
+    document.getElementById("coz").checked = false;
+    document.getElementById("caf").checked = false;
+    document.getElementById("min").value = "";
+
+    carregarProdutos();
+  })
+  .catch(err => { mostrarMsg("msgCadastro","Erro ao cadastrar produto!", false); console.error(err); });
+}
+
+// =======================
+// Movimentação de produtos
+// =======================
+function movimentar() {
+  let ean = document.getElementById("movEan").value.trim();
+  let origemSetor = document.getElementById("origem").value.toUpperCase();
+  let destinoSetor = document.getElementById("destino").value.toUpperCase();
+  let qtd = parseInt(document.getElementById("movQtd").value);
+
+  if (!ean || isNaN(qtd) || qtd <= 0) { mostrarMsg("msgMov","Informe EAN e quantidade válidos!", false); return; }
+  if (origemSetor === destinoSetor) { mostrarMsg("msgMov","Origem e destino não podem ser iguais!", false); return; }
+
+  let p = produtos.find(x => x.ean == ean);
+  if (!p) { mostrarMsg("msgMov","Produto não encontrado!", false); return; }
+  if (p[origemSetor.toLowerCase()] < qtd) { mostrarMsg("msgMov","Quantidade insuficiente na origem!", false); return; }
+
+  fetch(url, {
+    method: "POST",
+    body: JSON.stringify({
+      tipo: "movimentacao",
+      ean: ean,
+      origem: origemSetor,
+      destino: destinoSetor,
+      quantidade: qtd
+    })
+  })
+  .then(res => res.text())
+  .then(resposta => {
+    if (resposta === "OK") {
+      mostrarMsg("msgMov","Movimentação realizada!");
+      carregarProdutos();
+      document.getElementById("movEan").value = "";
+      document.getElementById("movQtd").value = "";
+    } else if(resposta === "ESTOQUE_INSUFICIENTE") {
+      mostrarMsg("msgMov","Quantidade insuficiente na origem!", false);
+    } else {
+      mostrarMsg("msgMov","Erro ao movimentar produto!", false);
+    }
+  });
+}
+
+// =======================
+// Contagem noturna
+// =======================
+function contagem() {
+  let ean = contEan.value.trim();
+  let setor = contSetor.value.toUpperCase();
+  let qtd = parseInt(contQtd.value);
+
+  if (!ean || isNaN(qtd) || qtd < 0) { mostrarMsg("msgCont","Informe EAN e quantidade válidos!", false); return; }
+
+  fetch(url, {
+    method: "POST",
+    body: JSON.stringify({
+      tipo: "contagem",
+      ean: ean,
+      setor: setor,
+      quantidade: qtd
+    })
+  })
+  .then(res => res.text())
+  .then(resposta => {
+    if (resposta === "OK") {
+      mostrarMsg("msgCont","Contagem registrada!");
+      carregarProdutos();
+      contEan.value = "";
+      contQtd.value = "";
+    } else {
+      mostrarMsg("msgCont","Erro na contagem!", false);
+    }
+  });
+}
+
+// =======================
+// Atualiza tabela HTML
+// =======================
+function atualizar(){
+
+  let t = document.getElementById("tabela");
+  t.innerHTML = "";
+
+  produtos.forEach(p=>{
+
+    let total = p.estoque + p.cozinha + p.cafe;
+
+    let alerta = "";
+    let cor = "";
+
+  let classe = "";
+
+  if(total <= p.minimo){
+  classe = "class='estoque-baixo'";
+  }
+
+    t.innerHTML+=`
+    <tr ${classe}>
+      <td>${p.ean}</td>
+      <td>${p.produto}</td>
+      <td>${p.estoque}</td>
+      <td>${p.cozinha}</td>
+      <td>${p.cafe}</td>
+      <td>${total}</td>
+    </tr>`;
+  });
+
+}
+
+// =======================
+// Carrega produtos do Google Sheets
+// =======================
+function carregarProdutos() {
+  fetch(url)
+    .then(res => res.json())
+    .then(dados => {
+      produtos = [];
+      for (let i = 1; i < dados.length; i++) {
+      produtos.push({
+        ean: dados[i][0],
+        produto: dados[i][1],
+        estoque: Number(dados[i][2]) || 0,
+        cozinha: Number(dados[i][3]) || 0,
+        cafe: Number(dados[i][4]) || 0,
+        minimo: Number(dados[i][5]) || 0,
+        setor: (dados[i][6] || "").toUpperCase().trim(),
+        imagem: dados[i][7] || ""
+      });
+      }
+      atualizar();
+      atualizarListaCompra();
+    })
+    .catch(err => { mostrarMsg("msgCadastro","Não foi possível carregar os produtos!", false); console.error(err); });
+
+}
+
+function buscarProduto(){
+
+  let termo = document.getElementById("buscaProduto").value.toLowerCase().trim();
+  let t = document.getElementById("tabela");
+
+  // se estiver vazio mostra tudo novamente
+  if(termo === ""){
+    atualizar();
+    return;
+  }
+
+  t.innerHTML = "";
+
+  produtos
+  .filter(p => 
+      p.produto.toLowerCase().includes(termo) ||
+      p.ean.includes(termo)
+  )
+  .forEach(p => {
+
+    let total = p.estoque + p.cozinha + p.cafe;
+
+    t.innerHTML += `
+    <tr>
+      <td>${p.ean}</td>
+      <td>${p.produto}</td>
+      <td>${p.estoque}</td>
+      <td>${p.cozinha}</td>
+      <td>${p.cafe}</td>
+      <td>${total}</td>
+    </tr>`;
+  });
+
+}
+function adicionarContagem() {
+
+  let ean = document.getElementById("contEan").value.trim();
+  let setor = document.getElementById("contSetor").value.toUpperCase();
+  let qtd = parseInt(document.getElementById("contQtd").value);
+
+  if (!ean || isNaN(qtd) || qtd < 0) {
+  mostrarMsg("msgCont","Informe EAN e quantidade válidos!", false);
+  return;
+  }
+  // 🔎 verifica se produto existe
+  let produtoExiste = produtos.find(p => p.ean == ean);
+
+  if (!produtoExiste) {
+    mostrarMsg("msgCont","Produto não cadastrado!", false);
+    return;
+  }
+
+  // 🔁 verifica se já está na lista
+  let existente = contagensPendentes.find(c => 
+    c.ean == ean && c.setor == setor
+  );
+
+  if (existente) {
+    existente.quantidade += qtd; // soma se já existir
+  } else {
+    contagensPendentes.push({
+      ean: ean,
+      setor: setor,
+      quantidade: qtd
+    });
+  }
+
+  mostrarMsg("msgCont","Adicionado à lista!");
+
+  document.getElementById("contEan").value = "";
+  document.getElementById("contQtd").value = "";
+
+  atualizarTabelaContagens();
+}
+function atualizarTabelaContagens() {
+
+  let tbody = document.querySelector("#tabelaContagens tbody");
+  tbody.innerHTML = "";
+
+  contagensPendentes.forEach((c, index) => {
+
+    tbody.innerHTML += `
+    <tr>
+      <td>${c.ean}</td>
+      <td>${c.setor}</td>
+      <td>${c.quantidade}</td>
+      <td class="acoes">
+        <button onclick="editarContagem(${index})">✏️</button>
+        <button onclick="removerContagem(${index})">🗑</button>
+      </td>
+    </tr>`;
+
+  });
+}
+
+function removerContagem(index){
+
+  contagensPendentes.splice(index,1);
+
+  atualizarTabelaContagens();
+
+  mostrarMsg("msgCont","Item removido!");
+
+}
+function editarContagem(index){
+
+  let item = contagensPendentes[index];
+
+  document.getElementById("contEan").value = item.ean;
+  document.getElementById("contSetor").value = item.setor;
+  document.getElementById("contQtd").value = item.quantidade;
+
+  contagensPendentes.splice(index,1);
+
+  atualizarTabelaContagens();
+
+  buscarProdutoContagem();
+
+  mostrarMsg("msgCont","Item carregado para edição!");
+
+}
+function enviarContagens(){
+
+  // adiciona automaticamente produtos do café não contados
+  produtos
+  .filter(p => p.cafe > 0)
+  .forEach(p => {
+
+    let existe = contagensPendentes.find(c =>
+      c.ean == p.ean && c.setor == "CAFE"
+    );
+
+    if(!existe){
+      contagensPendentes.push({
+        ean: p.ean,
+        setor: "CAFE",
+        quantidade: 0
+      });
+    }
+
+  });
+
+  if(contagensPendentes.length === 0){
+    mostrarMsg("msgCont","Nenhuma contagem para enviar!", false);
+    return;
+  }
+
+  fetch(url,{
+    method:"POST",
+    body: JSON.stringify({
+      tipo:"contagem_lote",
+      dados: contagensPendentes
+    })
+  })
+  .then(res => res.text())
+  .then(resposta => {
+
+    if(resposta.trim() === "OK"){
+
+      mostrarMsg("msgCont","Todas as contagens enviadas!");
+
+      contagensPendentes = [];
+
+      atualizarTabelaContagens();
+
+      carregarProdutos();
+
+    }else{
+
+      mostrarMsg("msgCont","Erro ao enviar contagens!", false);
+
+    }
+
+  })
+  .catch(err=>{
+    mostrarMsg("msgCont","Erro de conexão!", false);
+    console.error(err);
+  });
+
+}
+function atualizarListaCompra(){
+
+  let tabela = document.getElementById("listaCompra");
+  tabela.innerHTML = "";
+
+  produtos.forEach(p => {
+
+    let total = p.estoque + p.cozinha + p.cafe;
+
+    if(total <= p.minimo){
+
+      let comprar = p.minimo - total;
+
+      if(comprar < 0) comprar = 0;
+
+      tabela.innerHTML += `
+      <tr>
+        <td>${p.produto}</td>
+        <td>${total}</td>
+        <td>${p.minimo}</td>
+        <td>${comprar}</td>
+      </tr>
+      `;
+
+    }
+
+  });
+
+}
+function gerarPedido(){
+
+  let texto = "PEDIDO DE COMPRA\n\n";
+
+  produtos.forEach(p => {
+
+    let total = p.estoque + p.cozinha + p.cafe;
+
+    if(total <= p.minimo){
+
+      let comprar = p.minimo - total;
+
+      texto += `${p.produto} - Comprar: ${comprar}\n`;
+
+    }
+
+  });
+
+  let blob = new Blob([texto], {type:"text/plain"});
+  let link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "pedido_compra.txt";
+  link.click();
+
+}
+function enviarWhatsApp(){
+
+let msg="PEDIDO DE COMPRA:%0A%0A";
+
+produtos.forEach(p=>{
+
+let total = p.estoque + p.cozinha + p.cafe;
+
+if(total <= p.minimo){
+
+let comprar = p.minimo - total;
+
+msg += `${p.produto} - Comprar ${comprar}%0A`;
+}
+});
+window.open(`https://wa.me/?text=${msg}`);
+}
+
+let campoScanner = null;
+let scanner = null;
+
+function iniciarScanner(campo){
+
+campoScanner = campo;
+
+document.getElementById("scanner").style.display = "block";
+
+scanner = new Html5Qrcode("camera");
+
+scanner.start(
+{ facingMode: "environment" },
+{
+fps: 10,
+qrbox: { width: 300, height: 150 },
+
+formatsToSupport: [
+Html5QrcodeSupportedFormats.EAN_13,
+Html5QrcodeSupportedFormats.EAN_8,
+Html5QrcodeSupportedFormats.CODE_128,
+Html5QrcodeSupportedFormats.CODE_39
+]
+},
+(decodedText) => {
+document.getElementById(campoScanner).value = decodedText;
+
+if(campoScanner === "eanEntrada")
+{
+buscarProdutoEntrada();
+}
+if(campoScanner === "contEan")
+{
+buscarProdutoContagem();
+}
+if(campoScanner === "movEan"){
+buscarProdutoMov();
+}
+pararScanner();
+},
+(errorMessage) => {
+}
+);
+}
+
+function pararScanner(){
+
+if(scanner){
+scanner.stop().then(()=>{
+scanner.clear();
+});
+}
+
+document.getElementById("scanner").style.display = "none";
+}
+// =======================
+// Entrada de nota fiscal
+// =======================
+
+function registrarEntrada()
+{
+let ean = document.getElementById("eanEntrada").value.trim();
+let quantidade = parseInt(document.getElementById("qtdEntrada").value);
+let fornecedor = document.getElementById("fornecedor").value.trim();
+let nota = document.getElementById("nota").value.trim();
+
+if(!ean || isNaN(quantidade) || quantidade <= 0){
+mostrarMsg("msgEntrada","Informe EAN e quantidade válidos!", false);
+return;
+}
+
+fetch(url,{
+method:"POST",
+body: JSON.stringify({
+tipo:"entrada",
+ean:ean,
+quantidade:quantidade,
+fornecedor:fornecedor,
+nota:nota
+})
+})
+.then(res=>res.text())
+.then(resposta=>{
+
+if(resposta=="OK"){
+
+mostrarMsg("msgEntrada","Entrada registrada!");
+
+document.getElementById("eanEntrada").value="";
+document.getElementById("qtdEntrada").value="";
+document.getElementById("fornecedor").value="";
+document.getElementById("nota").value="";
+
+carregarProdutos();
+}else{
+mostrarMsg("msgEntrada","Produto não encontrado!", false);
+}
+});
+}
+
+function buscarProdutoEntrada()
+{
+let ean = document.getElementById("eanEntrada").value.trim();
+let produto = produtos.find(p => p.ean == ean);
+if(produto){
+document.getElementById("produtoEntrada").value = produto.produto;
+}else{
+document.getElementById("produtoEntrada").value = "";
+}
+}
+
+function buscarProdutoContagem()
+{
+let ean = document.getElementById("contEan").value.trim();
+let produto = produtos.find(p => p.ean == ean);
+if(produto){
+document.getElementById("produtoContagem").value = produto.produto;
+}else{
+document.getElementById("produtoContagem").value = "";
+}
+}
+function buscarProdutoMov()
+{
+let ean = document.getElementById("movEan").value.trim();
+let produto = produtos.find(p => p.ean == ean);
+if(produto){
+document.getElementById("produtoMov").value = produto.produto;
+}else{
+document.getElementById("produtoMov").value = "";
+}
+}
+function verificarPainelCafe(){
+let setor = document.getElementById("contSetor").value;
+let painel = document.getElementById("painelCafe");
+if(setor === "CAFE"){
+painel.style.display = "block";
+gerarPainelCafe();
+}else{
+painel.style.display = "none";
+}
+}
+
+function contarCafe(ean){
+
+// vibração ao tocar
+if(navigator.vibrate){
+navigator.vibrate(50);
+}
+
+let setor = "CAFE";
+
+let existente = contagensPendentes.find(c =>
+c.ean == ean && c.setor == setor
+);
+
+if(existente){
+
+existente.quantidade++;
+
+}else{
+
+contagensPendentes.push({
+ean: ean,
+setor: setor,
+quantidade: 1
+});
+
+}
+
+atualizarTabelaContagens();
+gerarPainelCafe();
+}
+
+function desfazerCafe(event,ean)
+{
+event.preventDefault();
+let setor = "CAFE";
+let existente = contagensPendentes.find(c =>
+c.ean == ean && c.setor == setor
+);
+if(existente)
+{
+
+existente.quantidade--;
+
+if(existente.quantidade < 0)
+{
+existente.quantidade = 0;
+}
+}else{
+// se ainda não existir cria com zero
+contagensPendentes.push({
+ean: ean,
+setor: setor,
+quantidade: 0
+});
+}
+atualizarTabelaContagens();
+gerarPainelCafe();
+}
+
+function gerarPainelCafe(){
+
+let container = document.getElementById("botoesCafe");
+
+container.innerHTML = "";
+
+produtos
+.filter(p => p.setor == "CAFE" || p.cafe > 0)
+.forEach(p => {
+
+let item = contagensPendentes.find(c =>
+c.ean == p.ean && c.setor == "CAFE"
+);
+
+let qtd = item ? item.quantidade : 0;
+
+container.innerHTML += `
+<button
+onclick="contarCafe('${p.ean}')"
+oncontextmenu="desfazerCafe(event,'${p.ean}')"
+style="
+padding:10px;
+font-size:14px;
+background:${qtd == 0 ? "#7f1d1d" : "#0f172a"};
+color:white;
+border:none;
+border-radius:10px;
+cursor:pointer;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+"
+>
+
+<img src="${p.imagem}" style="
+width:60px;
+height:60px;
+object-fit:contain;
+margin-bottom:5px;
+">
+
+${p.produto}
+
+<span style="font-size:20px">${qtd}</span>
+
+</button>
+`;
+});
+}
+
+window.onload = carregarProdutos;
+
+
+</script>
+
+</body>
+</html>
